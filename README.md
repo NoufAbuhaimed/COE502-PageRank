@@ -5,7 +5,7 @@ Serial and OpenMP PageRank in C++ (d = 0.85, ranks start at 1/N, double-buffered
 ## Build
 
 ```bash
-make            # builds ./serial and ./parallel (g++ -O3 -mcpu=native -fopenmp)
+make            # builds ./serial, ./parallel, ./parallel_opt (g++ -O3 -mcpu=native -fopenmp)
 make clean
 ```
 
@@ -49,6 +49,24 @@ make check      # serial vs OpenMP on tiny_dangling + both 10k graphs,
 python3 scripts/validate.py ranks_a.txt ranks_b.txt [tol]   # compare two rank files
 ```
 
+## Extra experiments
+
+**Optimized version (`parallel_opt`).** This uses an edge-balanced static split: each thread gets a contiguous node range with about the same number of in-edges. It runs one parallel region for the whole computation, and it fuses the contribution pass into the rank update. It produces the same CSV line (impl `openmp_opt`, schedule `edge-balanced`) and is covered by `make check`.
+
+```bash
+OMP_NUM_THREADS=16 ./parallel_opt datasets/pr_s500k_5m.txt 500 0
+```
+
+**Load-imbalance profile.** This measures each thread's busy time vs time spent waiting at the barrier, for static, dynamic,64 and edge-balanced:
+
+```bash
+make imbalance          # builds *_prof binaries, writes results/thread_times.csv
+                        # and plots/thread_imbalance.png (needs matplotlib)
+THREADS=8 ITERS=100 ./scripts/imbalance.sh   # other settings
+```
+
+The `*_prof` binaries add timing calls, so use them only for the imbalance plot, not for the speedup tables.
+
 ## Datasets
 
 The provided graphs (`pr_[u|s][N]_[M].txt`) are not in Git (about 160 MB). Put them in `datasets/`. On the shared server they live in `/workspace/coe502/datasets`.
@@ -63,8 +81,10 @@ The provided graphs (`pr_[u|s][N]_[M].txt`) are not in Git (about 160 MB). Put t
 ## Layout
 
 ```
-src/        graph.hpp/.cpp (loader + incoming CSR), serial.cpp, parallel.cpp
-scripts/    validate.py, correctness.sh (A); benchmark.sh, plot_results.py (B)
+src/        graph.hpp/.cpp (loader + incoming CSR), serial.cpp, parallel.cpp,
+            parallel_opt.cpp (optimized extra), thread_times.hpp (profiling)
+scripts/    validate.py, correctness.sh, imbalance.sh, plot_thread_times.py (A);
+            benchmark.sh, plot_results.py (B)
 datasets/   tiny_dangling.txt (+ provided graphs, not in Git)
 results/    correctness.csv, raw_timings.csv, system_info.txt
 plots/      runtime, speedup, efficiency, scheduling

@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "graph.hpp"
+#include "thread_times.hpp"
 
 static std::string schedule_label() {
     omp_sched_t kind;
@@ -56,6 +57,9 @@ int main(int argc, char **argv) {
 
     int iters = 0;
     double max_change = 0.0;
+#ifdef PROFILE_THREADS
+    std::vector<PaddedDouble> busy(omp_get_max_threads());
+#endif
 
     double t0 = omp_get_wtime();
     while (iters < opt.max_iters) {
@@ -74,6 +78,24 @@ int main(int argc, char **argv) {
 
         // Phase 2: pull from in-neighbours; track max absolute change.
         double mc = 0.0;
+#ifdef PROFILE_THREADS
+        // Same loop, split as parallel + for nowait so each thread can time
+        // its own share; the end of the parallel region is the barrier.
+#pragma omp parallel
+        {
+            double ts = omp_get_wtime();
+#pragma omp for schedule(runtime) reduction(max : mc) nowait
+            for (int32_t v = 0; v < N; ++v) {
+                double s = 0.0;
+                for (int64_t k = off[v]; k < off[v + 1]; ++k) s += c[in[k]];
+                double val = base + d * s;
+                double diff = std::fabs(val - r[v]);
+                if (diff > mc) mc = diff;
+                nr[v] = val;
+            }
+            busy[omp_get_thread_num()].v += omp_get_wtime() - ts;
+        }
+#else
 #pragma omp parallel for schedule(runtime) reduction(max : mc)
         for (int32_t v = 0; v < N; ++v) {
             double s = 0.0;
@@ -83,6 +105,7 @@ int main(int argc, char **argv) {
             if (diff > mc) mc = diff;
             nr[v] = val;
         }
+#endif
         max_change = mc;
 
         double *tmp = r; r = nr; nr = tmp;  // swap buffers
@@ -99,5 +122,9 @@ int main(int argc, char **argv) {
                 dataset_name(opt.graph_path).c_str(), omp_get_max_threads(),
                 schedule_label().c_str(), iters, max_change, sum, t1 - t0);
     if (!opt.ranks_out.empty()) write_ranks(opt.ranks_out, final_r);
+#ifdef PROFILE_THREADS
+    write_thread_times("openmp", dataset_name(opt.graph_path), schedule_label(), iters, t1 - t0,
+                       busy);
+#endif
     return 0;
 }

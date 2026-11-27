@@ -1,6 +1,9 @@
 # Binaries
 serial
 parallel
+parallel_opt
+parallel_prof
+parallel_opt_prof
 *.o
 
 # Provided datasets are large (~160 MB): keep them on the server only.
