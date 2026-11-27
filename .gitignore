@@ -6,7 +6,8 @@ parallel_prof
 parallel_opt_prof
 *.o
 
-# Provided datasets are large (~160 MB): keep them on the server only.
+# Provided graphs (~160 MB) never go in Git: they live in /workspace/coe502/datasets
+# on the server and ../datasets on our own machines (see scripts/data_dir.sh).
 datasets/pr_*.txt
 
 # Rank dumps

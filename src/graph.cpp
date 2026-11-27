@@ -1,5 +1,7 @@
 // COE 502 PageRank - graph loading and incoming-CSR construction.
-// Runs serially and is NOT part of the timed region.
+//
+// Everything here runs serially, before the timer starts, so it is NOT part
+// of the measured time (the assignment says not to time or parallelize I/O).
 #include "graph.hpp"
 
 #include <cerrno>
@@ -12,7 +14,9 @@
     std::exit(1);
 }
 
-// Read the whole file into memory; parsing a buffer is much faster than fscanf.
+// Read the whole file into memory in one go. Parsing a buffer by hand is much
+// faster than calling fscanf 5 million times on the large graphs.
+// The extra '\0' at the end lets the parser stop without length checks.
 static std::vector<char> read_file(const std::string &path) {
     FILE *f = std::fopen(path.c_str(), "rb");
     if (!f) die("cannot open " + path + ": " + std::strerror(errno));
@@ -27,7 +31,8 @@ static std::vector<char> read_file(const std::string &path) {
     return buf;
 }
 
-// Parse the next non-negative integer on the current line; returns false at end of line.
+// Parse the next non-negative integer on the current line and move p past it.
+// Returns false if the line has no more numbers (end of line or a non-digit).
 static bool next_int(const char *&p, int64_t &out) {
     while (*p == ' ' || *p == '\t' || *p == '\r') ++p;
     if (*p < '0' || *p > '9') return false;
@@ -37,6 +42,7 @@ static bool next_int(const char *&p, int64_t &out) {
     return true;
 }
 
+// Move p to the first character of the next line.
 static void skip_line(const char *&p) {
     while (*p && *p != '\n') ++p;
     if (*p == '\n') ++p;
@@ -47,13 +53,15 @@ Graph load_graph(const std::string &path) {
     const char *p = buf.data();
     Graph g;
     bool have_header = false;
-    std::vector<int32_t> src, dst;
+    std::vector<int32_t> src, dst;  // the raw edge list, in file order
     int64_t line_no = 0;
 
+    // ---- Step 1: parse the text into (src, dst) pairs -------------------------
     while (*p) {
         ++line_no;
         const char *line = p;
         while (*line == ' ' || *line == '\t') ++line;
+        // Skip comment lines and blank lines.
         if (*line == '#' || *line == '\n' || *line == '\r' || *line == '\0') {
             skip_line(p);
             continue;
@@ -64,6 +72,7 @@ Graph load_graph(const std::string &path) {
             die("line " + std::to_string(line_no) + ": expected two integers");
         skip_line(p);
 
+        // The first data line is the header "N M"; every line after it is an edge.
         if (!have_header) {
             if (a <= 0 || a > INT32_MAX || b < 0) die("bad header (N M)");
             g.N = static_cast<int32_t>(a);
@@ -83,15 +92,23 @@ Graph load_graph(const std::string &path) {
         die("header says M=" + std::to_string(g.M) + " but file has " +
             std::to_string(src.size()) + " edges");
 
-    // Out-degrees and incoming CSR via counting sort on destination.
+    // ---- Step 2: count out-degrees and in-degrees -----------------------------
+    // in_offsets[v+1] temporarily holds the in-degree of v.
     g.out_degree.assign(g.N, 0);
     g.in_offsets.assign(static_cast<size_t>(g.N) + 1, 0);
     for (int64_t e = 0; e < g.M; ++e) {
         g.out_degree[src[e]]++;
         g.in_offsets[static_cast<size_t>(dst[e]) + 1]++;
     }
+
+    // ---- Step 3: prefix sum turns in-degrees into start positions -------------
+    // After this, node v's in-neighbours go in slots in_offsets[v] .. in_offsets[v+1]-1.
     for (int32_t v = 0; v < g.N; ++v) g.in_offsets[v + 1] += g.in_offsets[v];
 
+    // ---- Step 4: place every edge in its target's slot (counting sort) --------
+    // pos[v] is the next free slot for node v. Edges keep their file order
+    // inside each node's list, so the layout (and the summation order later)
+    // is the same every run.
     g.in_src.resize(g.M);
     std::vector<int64_t> pos(g.in_offsets.begin(), g.in_offsets.end() - 1);
     for (int64_t e = 0; e < g.M; ++e) g.in_src[pos[dst[e]]++] = src[e];
@@ -126,6 +143,7 @@ std::string dataset_name(const std::string &path) {
 void write_ranks(const std::string &path, const std::vector<double> &r) {
     FILE *f = std::fopen(path.c_str(), "w");
     if (!f) die("cannot write " + path);
+    // %.17g prints every bit of the double, so a later comparison is exact.
     for (size_t v = 0; v < r.size(); ++v) std::fprintf(f, "%zu %.17g\n", v, r[v]);
     std::fclose(f);
 }
