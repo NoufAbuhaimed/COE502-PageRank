@@ -41,7 +41,15 @@ check: all
 imbalance: prof
 	./scripts/imbalance.sh
 
+# Timing experiments -> results/raw_timings.csv (resumable: rerun after a stop).
+bench: all
+	./scripts/benchmark.sh
+
+# Medians, speedup, efficiency, Karp-Flatt -> results/summary.csv + plots/
+plots:
+	uv run scripts/plot_results.py
+
 clean:
 	rm -f serial parallel parallel_opt parallel_prof parallel_opt_prof
 
-.PHONY: all prof check imbalance clean
+.PHONY: all prof check imbalance bench plots clean

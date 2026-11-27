@@ -5,7 +5,7 @@
 # Writes results/correctness.csv. Run from the repo root after `make`.
 set -euo pipefail
 
-DATA=${DATA:-datasets}
+. "$(dirname "$0")/data_dir.sh"   # DATA = /workspace/coe502/datasets on the server, else ../datasets
 TOL=${TOL:-1e-10}
 MAX_ITERS=${MAX_ITERS:-100}
 OUT=results/correctness.csv
@@ -16,8 +16,9 @@ mkdir -p results
 echo "dataset,threads,schedule,iters,max_change,rank_sum,max_abs_diff_vs_serial,result" > "$OUT"
 
 for g in tiny_dangling pr_u10k_100k pr_s10k_100k; do
-    f="$DATA/$g.txt"
-    [ -f "$f" ] || { echo "missing $f" >&2; exit 1; }
+    # tiny_dangling is our own test graph, kept in the repo; the others are the provided graphs.
+    if [ "$g" = tiny_dangling ]; then f="datasets/$g.txt"; else f="$DATA/$g.txt"; fi
+    [ -f "$f" ] || { echo "missing $f (set DATA=<folder with the graphs>)" >&2; exit 1; }
     ./serial "$f" "$MAX_ITERS" "$TOL" "$TMP/serial.txt" > "$TMP/serial.csv"
     IFS=, read -r _ _ _ _ it mc sum _ < "$TMP/serial.csv"
     echo "$g,serial,none,$it,$mc,$sum,0,REF" >> "$OUT"
@@ -30,7 +31,7 @@ for g in tiny_dangling pr_u10k_100k pr_s10k_100k; do
                        ./parallel "$f" "$MAX_ITERS" "$TOL" "$TMP/par.txt")
             fi
             IFS=, read -r _ _ th sc it mc sum _ <<< "$line"
-            v=$(python3 scripts/validate.py "$TMP/serial.txt" "$TMP/par.txt" || true)
+            v=$(uv run --quiet scripts/validate.py "$TMP/serial.txt" "$TMP/par.txt" || true)
             diff=$(sed -n 's/.*max_abs_diff=\([^ ]*\).*/\1/p' <<< "$v")
             res=${v%%:*}
             echo "$g,$th,$sc,$it,$mc,$sum,$diff,$res" >> "$OUT"

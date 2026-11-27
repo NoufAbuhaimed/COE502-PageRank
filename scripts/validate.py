@@ -1,7 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.9"
+# dependencies = []
+# ///
 """Compare two rank files written by serial/parallel (lines: "node rank").
 
-Usage: python3 scripts/validate.py ranks_serial.txt ranks_parallel.txt [tolerance]
+Usage: uv run scripts/validate.py ranks_serial.txt ranks_parallel.txt [tolerance]
 Exit code 0 = match within tolerance (default 1e-12), 1 = mismatch.
 """
 import sys

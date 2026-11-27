@@ -1,10 +1,14 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["matplotlib"]
+# ///
 """Plot per-thread busy vs idle time from results/thread_times.csv.
 
 One panel per (dataset, version); one stacked bar per thread:
 busy = time in its share of the update loop, idle = waiting at the barrier.
 
-Usage: python3 scripts/plot_thread_times.py results/thread_times.csv plots/thread_imbalance.png
+Usage: uv run scripts/plot_thread_times.py results/thread_times.csv plots/thread_imbalance.png
 """
 import csv
 import sys
