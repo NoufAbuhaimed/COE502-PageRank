@@ -1,0 +1,15 @@
+# Binaries
+serial
+parallel
+*.o
+
+# Provided datasets are large (~160 MB): keep them on the server only.
+datasets/pr_*.txt
+
+# Rank dumps
+*ranks*.txt
+
+# Python / editor
+__pycache__/
+.vscode/
+.DS_Store

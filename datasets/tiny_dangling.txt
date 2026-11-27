@@ -1,0 +1,9 @@
+# Dangling-node test graph (hand-made): node 4 has no outgoing edges.
+# Rank sum must stay 1.0 when its rank is redistributed to all nodes.
+5 6
+0 1
+0 2
+1 2
+2 0
+3 2
+3 4
